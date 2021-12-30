@@ -1,3 +1,4 @@
+const { request } = require('express');
 const express = require('express');
 const { v4: uuidv4 } = require("uuid");
 
@@ -28,6 +29,19 @@ function verifyIfExistAccountCPF(request, response, next) {
     return next();
 
 }
+
+function getBalance(statement){
+    const balance = statement.reduce((acc, operation) =>{
+        if(operation.type === 'credit'){
+            return acc + operation.amount;
+        }else{
+            return acc - operation.amount;
+        }
+    }, 0);
+
+    return balance;
+}
+
 app.post("/account", (request, response) =>{
     const { cpf, name } = request.body;
 
@@ -66,6 +80,28 @@ app.post("/deposit", verifyIfExistAccountCPF, (request, response) => {
 
     return response.status(201).send();
 })
+
+app.post("/withdraw", verifyIfExistAccountCPF, (request, response)=> {
+    const { amount } = request.body;
+    const { customer } = request;
+
+    const balance = getBalance(customer.statement);
+
+    if(balance < amount){
+        return response.status(400).json({error: "Insufficient funds"})
+    }
+
+    const statementOperation = {
+        amount,
+        created_at: new Date(),
+        type: "debit"
+    };
+
+    customer.statement.push(statementOperation);
+
+    return response.status(201).send();
+})
+
 app.get("/statement", verifyIfExistAccountCPF, (request,response) => {
 
     const { customer } = request;
